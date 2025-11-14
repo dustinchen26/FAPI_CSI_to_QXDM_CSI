@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FAPI_CSI_to_QXDM_CSI</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:Inter, 'Segoe UI', Roboto, 'Noto Sans TC', sans-serif}
+    body{background:#f3f6fb;color:#17202a;padding:20px}
+    .card{max-width:1000px;margin:20px auto;background:#fff;border-radius:10px;box-shadow:0 6px 20px rgba(2,6,23,0.08);overflow:hidden}
+    header{background:linear-gradient(90deg,#2c3e50,#4a6491);color:#fff;padding:20px}
+    header h1{font-size:1.5rem}
+    .grid{display:flex;gap:20px;padding:20px;flex-wrap:wrap}
+    .col{flex:1;min-width:300px}
+    label{display:block;font-size:0.95rem;color:#243240;margin-bottom:8px}
+    input[type=text]{width:100%;padding:10px;border:1px solid #e3e9f0;border-radius:6px;font-family:monospace}
+    .btns{display:flex;gap:10px;margin-top:12px}
+    button{background:#4a6491;color:#fff;padding:10px 14px;border-radius:7px;border:none;cursor:pointer;font-weight:600}
+    button.ghost{background:#eef3fb;color:#2c3e50;border:1px solid #d8e1f3}
+    textarea{width:100%;min-height:320px;padding:12px;border-radius:8px;border:1px solid #e6eef9;background:#fbfdff;font-family:monospace}
+    .meta{font-size:0.9rem;color:#5a6a78;margin-top:8px}
+    .small{font-size:0.85rem;color:#55616a}
+    .row{display:flex;gap:12px;align-items:center}
+    .output-pre{white-space:pre-wrap;font-family:monospace}
+    footer{padding:14px;text-align:center;color:#6b7a86;border-top:1px solid #f0f4f8}
+    @media (max-width:760px){.grid{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <header>
+      <h1>FAPI_CSI_to_QXDM_CSI</h1>
+	              <p style="margin: 0; color: white;">【Author】: Dustin_Chen, 【Email】: <a href="mailto:Dustin_Chen@compal.com" style="color: inherit; line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com" style="color: inherit; line-height: 1;">chuhpsdustin@gmail.com</a></p>
+    </header>
+
+    <div class="grid">
+      <div class="col">
+        <label for="byte0">Input [RX_CSI.ind] Byte 0 （hex，例如 0xdd）</label>
+        <input id="byte0" type="text" value="0xdd" />
+
+        <label for="byte1" style="margin-top:12px">Input [RX_CSI.ind] Byte 1（hex，例如 0x60）</label>
+        <input id="byte1" type="text" value="0x60" />
+
+        <div class="btns">
+          <button id="decodeBtn">解碼並還原 QXDM Report</button>
+          <button id="clearBtn" class="ghost">清除</button>
+        </div>
+
+        <p class="meta">說明：本工具假設 bit 結構固定（共 11 bits）：RI(2) + Zero Padding(1) + PMI_WB_X1(3) + PMI_WB_X2(1) + WB_CQI(4)。
+        Byte 串接順序為 <strong>Byte0 (前 8 bits) + Byte1 (後 8 bits)</strong>。</p>
+
+        <div style="margin-top:12px">
+          <label class="small">BitString（Byte0 + Byte1）</label>
+          <div id="bitString" class="small" style="padding:8px;background:#f6f9ff;border:1px solid #e6eef9;border-radius:6px;font-family:monospace"></div>
+        </div>
+      </div>
+
+      <div class="col">
+        <label>QXDM 轉換輸出</label>
+        <textarea id="output" readonly placeholder="解碼結果會顯示在這裡..."></textarea>
+
+        <div style="margin-top:10px" class="small">
+          <strong>註記 — RRCReconfiguration 對應說明：</strong>
+          <div class="small output-pre" style="margin-top:6px;padding:8px;background:#fafcff;border-radius:6px;border:1px solid #eef4ff">
+reportQuantity cri-RI-PMI-CQI : NULL, # CRI、RI
+cqi-FormatIndicator widebandCQI, # WB CQI
+pmi-FormatIndicator widebandPMI, # PMI WB X1/X2
+csi-ReportingBand subbands9 : '11111111 1'B # PMI SB X2
+typeI-SinglePanel-ri-Restriction '00001111'B # RI
+codebookMode 1 # PMI WB X1/X2
+cqi-Table table2, # WB CQI mapping
+subbandSize value2
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const el = id => document.getElementById(id);
+
+    function parseHexInput(s){
+      if(!s) return null;
+      s = String(s).trim().toLowerCase();
+      if(s.startsWith('0x')) s = s.slice(2);
+      if(s === '') return null;
+      if(!/^[0-9a-f]{1,2}$/.test(s)) return null;
+      return parseInt(s,16);
+    }
+
+    function toBits(n){
+      return (n>>>0).toString(2).padStart(8,'0');
+    }
+
+    function decodeBytes(b0, b1){
+      const bits = toBits(b0) + toBits(b1); // Byte0 bits first, then Byte1
+      // field order: RI(2) | ZeroPadding(1) | PMI_X1(3) | PMI_X2(1) | WB_CQI(4)
+      const riBits = bits.substr(0,2);
+      const padBit = bits.substr(2,1);
+      const pmiX1Bits = bits.substr(3,3);
+      const pmiX2Bits = bits.substr(6,1);
+      const wbCqiBits = bits.substr(7,4);
+
+      const RI = parseInt(riBits,2);
+      const ZeroPadding = parseInt(padBit,2);
+      const PMI_WB_X1 = parseInt(pmiX1Bits,2);
+      const PMI_WB_X2 = parseInt(pmiX2Bits,2);
+      const WB_CQI = parseInt(wbCqiBits,2);
+
+      return {
+        bits,
+        fields:{RI, ZeroPadding, PMI_WB_X1, PMI_WB_X2, WB_CQI},
+        raw:{riBits,padBit,pmiX1Bits,pmiX2Bits,wbCqiBits}
+      };
+    }
+
+    function buildQXDMReport(decoded){
+      const d = decoded.fields;
+      const bw = `            Bit Width {\n               CRI = 0\n               RI = 2\n               Zero Padding = 1\n               WB CQI = 4\n               PMI WB X1 =    3\n               PMI WB X2 = 1\n               LI = 0\n               PMI SB X2 = 0\n            }`;
+
+      const metrics = `            Metrics {\n               CRI = 0\n               RI = ${d.RI}\n               WB CQI = ${d.WB_CQI}\n               PMI WB X1 =        ${d.PMI_WB_X1}\n               PMI WB X2 =        ${d.PMI_WB_X2}\n               LI = 0\n               Num SB = 0\n            }`;
+
+      const out = `[0xB8A7]\tNR5G MAC CSF Report\nMacVersion {\n   Major.Minor = 2\n   1\n}\nVersion 131073 {\n   Log Fields Change BMask = 0x0000\n   Num Records = 1\n   Records[0] {\n      Timestamp {\n         Slot = 14\n         Numerology = 30kHz\n         Frame = 175\n      }\n      Num CSF Reports = 1\n      Reports[0] {\n         Carrier ID = 0\n         Resource Carrier ID = 0\n         Report ID = 0\n         Report Type =   PERIODIC\n         Report Quantity Bitmask = CRI | RI | PMI | CQI\n         Late CSF = 0\n         Faked CSF = 0\n         Num CSI P1 Bits = 11\n         Num CSI P2 WB Bits = 0\n         Num CSI P2 SB Odd Bits = 0\n         Num CSI P2 SB Even Bits = 0\n         Report Dropped = 0\n         P1 Dropped = 0\n         P2 WB Dropped = 0\n         P2 SB Odd Report Dropped = 0\n         P2 SB Even Report Dropped = 0\n         CSI {\n${metrics}\n${bw}\n         }\n      }\n   }\n}`;
+
+      return out;
+    }
+
+    el('decodeBtn').addEventListener('click', ()=>{
+      const b0raw = el('byte0').value;
+      const b1raw = el('byte1').value;
+      const b0 = parseHexInput(b0raw);
+      const b1 = parseHexInput(b1raw);
+
+      if(b0 === null || b1 === null){
+        el('output').value = '錯誤：請輸入合法的 1 byte hex 值，例如 0xdd 或 dd。';
+        el('bitString').textContent = '';
+        return;
+      }
+
+      const decoded = decodeBytes(b0,b1);
+      el('bitString').textContent = decoded.bits.split('').join(' ');
+
+      const report = buildQXDMReport(decoded);
+
+      // 顯示一個更易讀的 summary 在 top
+      const summary = `解碼結果：\n  Byte0=0x${b0.toString(16).padStart(2,'0')}, Byte1=0x${b1.toString(16).padStart(2,'0')}\n  bitString (Byte0+Byte1) = ${decoded.bits}\n  RI=${decoded.fields.RI}, PMI_WB_X1=${decoded.fields.PMI_WB_X1}, PMI_WB_X2=${decoded.fields.PMI_WB_X2}, WB_CQI=${decoded.fields.WB_CQI}\n\n`;
+
+      const rrcNote = `RRCReconfiguration 註明:\nreportQuantity cri-RI-PMI-CQI : NULL, # CRI、RI\ncqi-FormatIndicator widebandCQI, # WB CQI\npmi-FormatIndicator widebandPMI, # PMI WB X1/X2\ncsi-ReportingBand subbands9 : '11111111 1'B # PMI SB X2\ntypeI-SinglePanel-ri-Restriction '00001111'B # RI\ncodebookMode 1 # PMI WB X1/X2\ncqi-Table table2, # WB CQI mapping\nsubbandSize value2\n\n`;
+
+      el('output').value = summary + report + "\n\n" + rrcNote;
+    });
+
+    el('clearBtn').addEventListener('click', ()=>{
+      el('byte0').value = '';
+      el('byte1').value = '';
+      el('output').value = '';
+      el('bitString').textContent = '';
+    });
+
+    // init: decode default values if present
+    window.addEventListener('load', ()=>{
+      try{ el('decodeBtn').click(); }catch(e){}
+    });
+  </script>
+</body>
+</html>
