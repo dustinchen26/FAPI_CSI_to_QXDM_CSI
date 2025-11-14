@@ -30,15 +30,16 @@
   <div class="card">
     <header>
       <h1>FAPI_CSI_to_QXDM_CSI</h1>
-	              <p style="margin: 0; color: white;">【Author】: Dustin_Chen, 【Email】: <a href="mailto:Dustin_Chen@compal.com" style="color: inherit; line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com" style="color: inherit; line-height: 1;">chuhpsdustin@gmail.com</a></p>
+      <p style="margin: 0; color: white;">【Author】: Dustin_Chen, 【Email】: <a href="mailto:Dustin_Chen@compal.com" style="color: inherit; line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com" style="color: inherit; line-height: 1;">chuhpsdustin@gmail.com</a></p>
     </header>
 
     <div class="grid">
       <div class="col">
-        <label for="byte0">Input [RX_CSI.ind] Byte 0 （hex，例如 0xdd）</label>
+        <label for="byte0">Please enter wireshark FAPI [RX_CSI.ind] CSI PDU #0:</label>
+        <label for="byte0">Byte 0 (ex: 0xdd)</label>
         <input id="byte0" type="text" value="0xdd" />
 
-        <label for="byte1" style="margin-top:12px">Input [RX_CSI.ind] Byte 1（hex，例如 0x60）</label>
+        <label for="byte1" style="margin-top:12px">Byte 1 (ex: 0x60)</label>
         <input id="byte1" type="text" value="0x60" />
 
         <div class="btns">
@@ -117,11 +118,11 @@ subbandSize value2
 
     function buildQXDMReport(decoded){
       const d = decoded.fields;
-      const bw = `            Bit Width {\n               CRI = 0\n               RI = 2\n               Zero Padding = 1\n               WB CQI = 4\n               PMI WB X1 =    3\n               PMI WB X2 = 1\n               LI = 0\n               PMI SB X2 = 0\n            }`;
-
       const metrics = `            Metrics {\n               CRI = 0\n               RI = ${d.RI}\n               WB CQI = ${d.WB_CQI}\n               PMI WB X1 =        ${d.PMI_WB_X1}\n               PMI WB X2 =        ${d.PMI_WB_X2}\n               LI = 0\n               Num SB = 0\n            }`;
 
-      const out = `[0xB8A7]\tNR5G MAC CSF Report\nMacVersion {\n   Major.Minor = 2\n   1\n}\nVersion 131073 {\n   Log Fields Change BMask = 0x0000\n   Num Records = 1\n   Records[0] {\n      Timestamp {\n         Slot = 14\n         Numerology = 30kHz\n         Frame = 175\n      }\n      Num CSF Reports = 1\n      Reports[0] {\n         Carrier ID = 0\n         Resource Carrier ID = 0\n         Report ID = 0\n         Report Type =   PERIODIC\n         Report Quantity Bitmask = CRI | RI | PMI | CQI\n         Late CSF = 0\n         Faked CSF = 0\n         Num CSI P1 Bits = 11\n         Num CSI P2 WB Bits = 0\n         Num CSI P2 SB Odd Bits = 0\n         Num CSI P2 SB Even Bits = 0\n         Report Dropped = 0\n         P1 Dropped = 0\n         P2 WB Dropped = 0\n         P2 SB Odd Report Dropped = 0\n         P2 SB Even Report Dropped = 0\n         CSI {\n${metrics}\n${bw}\n         }\n      }\n   }\n}`;
+      const bw = `            Bit Width {\n               CRI = 0\n               RI = 2\n               Zero Padding = 1\n               WB CQI = 4\n               PMI WB X1 =    3\n               PMI WB X2 = 1\n               LI = 0\n               PMI SB X2 = 0\n            }`;
+
+      const out = `[0xB8A7]\tNR5G MAC CSF Report\n         Report Quantity Bitmask = CRI | RI | PMI | CQI\n         Num CSI P1 Bits = 11\n         CSI {\n${metrics}\n${bw}\n         }`;
 
       return out;
     }
@@ -146,9 +147,7 @@ subbandSize value2
       // 顯示一個更易讀的 summary 在 top
       const summary = `解碼結果：\n  Byte0=0x${b0.toString(16).padStart(2,'0')}, Byte1=0x${b1.toString(16).padStart(2,'0')}\n  bitString (Byte0+Byte1) = ${decoded.bits}\n  RI=${decoded.fields.RI}, PMI_WB_X1=${decoded.fields.PMI_WB_X1}, PMI_WB_X2=${decoded.fields.PMI_WB_X2}, WB_CQI=${decoded.fields.WB_CQI}\n\n`;
 
-      const rrcNote = `RRCReconfiguration 註明:\nreportQuantity cri-RI-PMI-CQI : NULL, # CRI、RI\ncqi-FormatIndicator widebandCQI, # WB CQI\npmi-FormatIndicator widebandPMI, # PMI WB X1/X2\ncsi-ReportingBand subbands9 : '11111111 1'B # PMI SB X2\ntypeI-SinglePanel-ri-Restriction '00001111'B # RI\ncodebookMode 1 # PMI WB X1/X2\ncqi-Table table2, # WB CQI mapping\nsubbandSize value2\n\n`;
-
-      el('output').value = summary + report + "\n\n" + rrcNote;
+      el('output').value = summary + report;
     });
 
     el('clearBtn').addEventListener('click', ()=>{
